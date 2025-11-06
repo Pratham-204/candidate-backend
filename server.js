@@ -12,6 +12,15 @@ app.use(express.json());
 /* ------------------------
    Multer Config (Resume Upload)
 ------------------------ */
+const fs = require('fs');
+const uploadsDir = path.join(__dirname, 'uploads');
+
+if (!fs.existsSync(uploadsDir)) {
+  fs.mkdirSync(uploadsDir);
+  console.log('✅ uploads directory created');
+}
+
+// Multer config to store resumes
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
     cb(null, 'uploads/');
@@ -25,6 +34,7 @@ const storage = multer.diskStorage({
   }
 });
 const upload = multer({ storage });
+
 
 /* ------------------------
    Database Initialization Route
@@ -231,3 +241,4 @@ const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
   console.log(`🚀 Server running on http://localhost:${PORT}`);
 });
+
