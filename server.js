@@ -9,7 +9,9 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// Multer config to store resumes
+/* ------------------------
+   Multer Config (Resume Upload)
+------------------------ */
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
     cb(null, 'uploads/');
@@ -25,10 +27,38 @@ const storage = multer.diskStorage({
 const upload = multer({ storage });
 
 /* ------------------------
-   All API ROUTES
+   Database Initialization Route
+------------------------ */
+app.get('/init-db', async (req, res) => {
+  try {
+    const query = `
+      CREATE TABLE IF NOT EXISTS candidates (
+        id SERIAL PRIMARY KEY,
+        name VARCHAR(100),
+        specialization VARCHAR(100),
+        location VARCHAR(100),
+        years_experience VARCHAR(50),
+        remark TEXT,
+        resume_url TEXT,
+        employee_referral BOOLEAN DEFAULT false,
+        employee_id VARCHAR(50),
+        consultancy_referral BOOLEAN DEFAULT false,
+        consultancy_name VARCHAR(100)
+      );
+    `;
+    await pool.query(query);
+    res.send('✅ candidates table created successfully (if not existed)');
+  } catch (err) {
+    console.error('❌ Error creating table:', err);
+    res.status(500).send('Error creating table: ' + err.message);
+  }
+});
+
+/* ------------------------
+   API ROUTES
 ------------------------ */
 
-// POST /candidates → create new candidate
+// POST: Add candidate
 app.post('/candidates', upload.single('resume'), async (req, res) => {
   try {
     const {
@@ -74,7 +104,7 @@ app.post('/candidates', upload.single('resume'), async (req, res) => {
   }
 });
 
-// GET /candidates → fetch all candidates
+// GET: Fetch all candidates
 app.get('/candidates', async (req, res) => {
   try {
     const result = await pool.query('SELECT * FROM candidates');
@@ -85,31 +115,27 @@ app.get('/candidates', async (req, res) => {
   }
 });
 
+// GET: Dashboard stats
 app.get('/dashboard-stats', async (req, res) => {
   try {
     const stats = {};
 
-    // Total candidates
     const total = await pool.query(`SELECT COUNT(*) FROM candidates`);
     stats.total_candidates = parseInt(total.rows[0].count);
 
-    // Freshers vs Experienced
     const freshers = await pool.query(`SELECT COUNT(*) FROM candidates WHERE specialization = 'Fresher'`);
     stats.freshers = parseInt(freshers.rows[0].count);
     stats.experienced = stats.total_candidates - stats.freshers;
 
-    // Referral source counts
     const employeeRef = await pool.query(`SELECT COUNT(*) FROM candidates WHERE employee_referral = true`);
     stats.employee_referrals = parseInt(employeeRef.rows[0].count);
 
     const consultancyRef = await pool.query(`SELECT COUNT(*) FROM candidates WHERE consultancy_referral = true`);
     stats.consultancy_referrals = parseInt(consultancyRef.rows[0].count);
 
-    // Group by location
     const locations = await pool.query(`SELECT location, COUNT(*) FROM candidates GROUP BY location`);
     stats.candidates_by_location = locations.rows;
 
-    // Group by experience
     const experience = await pool.query(`SELECT years_experience, COUNT(*) FROM candidates GROUP BY years_experience`);
     stats.candidates_by_experience = experience.rows;
 
@@ -120,30 +146,22 @@ app.get('/dashboard-stats', async (req, res) => {
   }
 });
 
-
-// DELETE /candidates/:id → delete candidate
+// DELETE: Candidate by ID
 app.delete('/candidates/:id', async (req, res) => {
   const { id } = req.params;
-  console.log('🟡 DELETE request received for ID:', id);
-
   try {
     const result = await pool.query('DELETE FROM candidates WHERE id = $1 RETURNING *', [id]);
-    console.log('🟢 SQL delete result:', result);
-
     if (result.rowCount === 0) {
-      console.log('🔴 Candidate NOT found in DB for deletion.');
       return res.status(404).json({ error: 'Candidate not found.' });
     }
-
-    console.log('✅ Candidate deleted.');
     res.json({ message: 'Candidate deleted successfully.' });
   } catch (error) {
-    console.error('🔥 Error deleting candidate:', error);
+    console.error('Error deleting candidate:', error);
     res.status(500).json({ error: 'An error occurred while deleting the candidate.' });
   }
 });
 
-// PUT /candidates/:id → update candidate
+// PUT: Update candidate
 app.put('/candidates/:id', async (req, res) => {
   const { id } = req.params;
   const {
@@ -197,53 +215,19 @@ app.put('/candidates/:id', async (req, res) => {
 });
 
 /* ------------------------
-   Static File Serving
+   Static Files
 ------------------------ */
-
-// Serve resume files
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
-// Catch-all for unmatched routes
+/* ------------------------
+   Fallback & Server Start
+------------------------ */
 app.use((req, res) => {
   console.log(`❌ No route matched for ${req.method} ${req.originalUrl}`);
   res.status(404).send('Route not found');
 });
 
-// ------------------ INITIAL DATABASE SETUP ------------------
-app.get('/init-db', async (req, res) => {
-  try {
-    const query = `
-      CREATE TABLE IF NOT EXISTS candidates (
-        id SERIAL PRIMARY KEY,
-        name VARCHAR(100),
-        specialization VARCHAR(100),
-        location VARCHAR(100),
-        years_experience VARCHAR(50),
-        remark TEXT,
-        resume_url TEXT,
-        employee_referral BOOLEAN DEFAULT false,
-        employee_id VARCHAR(50),
-        consultancy_referral BOOLEAN DEFAULT false,
-        consultancy_name VARCHAR(100)
-      );
-    `;
-    await pool.query(query);
-    res.send('✅ candidates table created successfully (if not existed)');
-  } catch (err) {
-    console.error('❌ Error creating table:', err);
-    res.status(500).send('Error creating table: ' + err.message);
-  }
-});
-
-
-/* ------------------------
-   Start the Server
------------------------- */
-
-
-
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
   console.log(`🚀 Server running on http://localhost:${PORT}`);
 });
-
