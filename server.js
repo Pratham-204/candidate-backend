@@ -209,11 +209,41 @@ app.use((req, res) => {
   res.status(404).send('Route not found');
 });
 
+// ------------------ INITIAL DATABASE SETUP ------------------
+app.get('/init-db', async (req, res) => {
+  try {
+    const query = `
+      CREATE TABLE IF NOT EXISTS candidates (
+        id SERIAL PRIMARY KEY,
+        name VARCHAR(100),
+        specialization VARCHAR(100),
+        location VARCHAR(100),
+        years_experience VARCHAR(50),
+        remark TEXT,
+        resume_url TEXT,
+        employee_referral BOOLEAN DEFAULT false,
+        employee_id VARCHAR(50),
+        consultancy_referral BOOLEAN DEFAULT false,
+        consultancy_name VARCHAR(100)
+      );
+    `;
+    await pool.query(query);
+    res.send('✅ candidates table created successfully (if not existed)');
+  } catch (err) {
+    console.error('❌ Error creating table:', err);
+    res.status(500).send('Error creating table: ' + err.message);
+  }
+});
+
+
 /* ------------------------
    Start the Server
 ------------------------ */
+
+
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
   console.log(`🚀 Server running on http://localhost:${PORT}`);
 });
+
